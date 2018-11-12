@@ -13,7 +13,6 @@ PROGRAM stableCalc
     ! Program variables
     REAL, ALLOCATABLE::tEvents(:, :), tArray(:)
     REAL, ALLOCATABLE::abundArray(:, :)
-    INTEGER, ALLOCATABLE::eventsTags(:)
     INTEGER::uni, nTimes, lenEvent, nEvents, ii, jj, redNEvents
     CHARACTER(5)::sRank
     LOGICAL::isMaster
@@ -41,8 +40,8 @@ PROGRAM stableCalc
         redNEvents = redNEvents + 1
     END DO
     
-    ! Allocate the reduced sizes
-    ALLOCATE(tEvents(lenEvent, redNEvents), eventsTags(redNEvents))
+    ! Allocate tEvents with the reduced size redNEvents
+    ALLOCATE(tEvents(lenEvent, redNEvents))
     
     ! Now read the information
     jj = 1
@@ -50,8 +49,6 @@ PROGRAM stableCalc
         IF (rank.NE.MOD(ii - 1, nProc)) CYCLE
         
         READ(uni, *) tEvents(:, jj)
-        eventsTags(jj) = ii
-        
         jj = jj + 1
     END DO
     
@@ -75,25 +72,26 @@ PROGRAM stableCalc
     WRITE(uni, *)
     
     ! Calculate
-    ii = 1
-    DO jj = 1, nEvents
+    jj = 1
+    DO ii = 1, nEvents
         ! Divide events evenly
-        IF (rank.NE.MOD(jj - 1, nProc)) CYCLE
+        IF (rank.NE.MOD(ii - 1, nProc)) CYCLE
         
-        CALL stableAbund(abundArray(:, ii), tEvents(:, ii), tArray)
+        CALL stableAbund(abundArray(:, jj), tEvents(:, jj), tArray)
+        jj = jj + 1
     END DO
     
     ! Write
-    ii = 1
-    DO jj = 1, nEvents
+    jj = 1
+    DO ii = 1, nEvents
         ! Divide events evenly
-        IF (rank.NE.MOD(jj - 1, nProc)) CYCLE
+        IF (rank.NE.MOD(ii - 1, nProc)) CYCLE
         
-        WRITE(uni, *) eventsTags(ii), abundArray(:, ii)
-        ii = ii + 1
+        WRITE(uni, *) ii, abundArray(:, jj)
+        jj = jj + 1
     END DO
     
-    DEALLOCATE(tEvents, tArray, abundArray, eventsTags)
+    DEALLOCATE(tEvents, tArray, abundArray)
     CALL MPI_FINALIZE(ierror)
 CONTAINS
 

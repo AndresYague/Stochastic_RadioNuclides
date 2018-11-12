@@ -14,7 +14,6 @@ PROGRAM radioCalc
     ! Program variables
     REAL, ALLOCATABLE::taus(:), tEvents(:, :), tArray(:)
     REAL, ALLOCATABLE::abundArray(:, :)
-    INTEGER, ALLOCATABLE::eventsTags(:)
     INTEGER::uni, nTau, nTimes, lenEvent, nEvents, ii, jj, kk, redNEvents
     CHARACTER(5)::sRank
     LOGICAL::isMaster
@@ -51,8 +50,8 @@ PROGRAM radioCalc
         redNEvents = redNEvents + 1
     END DO
     
-    ! Allocate the reduced sizes
-    ALLOCATE(tEvents(lenEvent, redNEvents), eventsTags(redNEvents))
+    ! Allocate tEvents with the reduced size redNEvents
+    ALLOCATE(tEvents(lenEvent, redNEvents))
     
     ! Now read the information
     jj = 1
@@ -60,8 +59,6 @@ PROGRAM radioCalc
         IF (rank.NE.MOD(ii - 1, nProc)) CYCLE
         
         READ(uni, *) tEvents(:, jj)
-        eventsTags(jj) = ii
-        
         jj = jj + 1
     END DO
     
@@ -106,12 +103,12 @@ PROGRAM radioCalc
             ! Divide events evenly
             IF (rank.NE.MOD(jj - 1, nProc)) CYCLE
             
-            WRITE(uni, *) eventsTags(kk), abundArray(:, kk)
+            WRITE(uni, *) jj, abundArray(:, kk)
             kk = kk + 1
         END DO
     END DO
     
-    DEALLOCATE(taus, tEvents, tArray, abundArray, eventsTags)
+    DEALLOCATE(taus, tEvents, tArray, abundArray)
     CALL MPI_FINALIZE(ierror)
 CONTAINS
 
