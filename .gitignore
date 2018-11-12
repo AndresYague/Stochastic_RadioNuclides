@@ -1,0 +1,5 @@
+# Ignore .in files
+*.in
+
+# Ignore tags
+tags
