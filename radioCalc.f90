@@ -108,6 +108,8 @@ PROGRAM radioCalc
         END DO
     END DO
     
+    CLOSE(uni)
+    
     DEALLOCATE(taus, tEvents, tArray, abundArray)
     CALL MPI_FINALIZE(ierror)
 CONTAINS

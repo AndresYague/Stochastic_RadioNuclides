@@ -91,6 +91,8 @@ PROGRAM stableCalc
         jj = jj + 1
     END DO
     
+    CLOSE(uni)
+    
     DEALLOCATE(tEvents, tArray, abundArray)
     CALL MPI_FINALIZE(ierror)
 CONTAINS
