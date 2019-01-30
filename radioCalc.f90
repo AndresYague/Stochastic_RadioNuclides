@@ -14,6 +14,7 @@ PROGRAM radioCalc
     ! Program variables
     REAL, ALLOCATABLE::taus(:), tEvents(:, :), tArray(:)
     REAL, ALLOCATABLE::abundArray(:, :)
+    REAL::prodFactor
     INTEGER::uni, nTau, nTimes, lenEvent, nEvents, ii, jj, kk, redNEvents
     CHARACTER(5)::sRank
     LOGICAL::isMaster
@@ -27,6 +28,12 @@ PROGRAM radioCalc
     
     ! Identify master
     isMaster = (rank.EQ.0)
+    
+    ! Read prodFactor
+    uni = 16
+    OPEN(UNIT = uni, FILE = "prodFactor.in")
+    READ(uni, *) prodFactor
+    CLOSE(UNIT = uni)
     
     ! Read tau parameters
     uni = 16
@@ -92,7 +99,7 @@ PROGRAM radioCalc
             IF (rank.NE.MOD(jj - 1, nProc)) CYCLE
             
             CALL decayingAbund(abundArray(:, kk), tEvents(:, kk), tArray, &
-                               taus(ii))
+                               taus(ii), prodFactor)
             
             kk = kk + 1
         END DO
@@ -122,14 +129,15 @@ CONTAINS
 !!! -tEvents, the array with the polluting events times.                     !!!
 !!! -tArray, the array with the sampling temporal points.                    !!!
 !!! -tau, the tau value.                                                     !!!
+!!! -prodFactor, production factor.                                          !!!
 !!!                                                                          !!!
 !!! At the output, abundArray will be updated.                               !!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE decayingAbund(abundArray, tEvents, tArray, tau)
+SUBROUTINE decayingAbund(abundArray, tEvents, tArray, tau, prodFactor)
     IMPLICIT NONE
     
     ! Input
-    REAL::abundArray(:), tEvents(:), tArray(:), tau
+    REAL::abundArray(:), tEvents(:), tArray(:), tau, prodFactor
     
     ! Local
     REAL::invTau, currT, prevT, dt, val, thisEvent, nextEvent
@@ -141,7 +149,7 @@ SUBROUTINE decayingAbund(abundArray, tEvents, tArray, tau)
     ! Set up first point
     iiEvent = 1
     IF (tEvents(1).LE.0.D0) THEN
-        abundArray(1) = 1.D0
+        abundArray(1) = prodFactor
         iiEvent = 2
     ELSE
         abundArray(1) = 0.D0
@@ -185,7 +193,7 @@ SUBROUTINE decayingAbund(abundArray, tEvents, tArray, tau)
                 
                 ! Take the minimum
                 minTime = MINVAL((/nextEvent, currT/))
-                val = (1 + val)*EXP(-(minTime - thisEvent)*invTau)
+                val = (prodFactor + val)*EXP(-(minTime - thisEvent)*invTau)
                 
                 ! Advance time
                 iiEvent = iiEvent + 1
