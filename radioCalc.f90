@@ -81,6 +81,7 @@ PROGRAM radioCalc
     CLOSE(UNIT = uni)
     
     ! Open output files. Write the rank to the filename.
+    uni = 10 + rank
     WRITE(sRank, '(I5)') rank
     OPEN(UNIT = uni, FILE = "Output"//TRIM(ADJUSTL(sRank))//".txt")
     
