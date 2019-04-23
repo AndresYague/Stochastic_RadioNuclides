@@ -46,9 +46,9 @@ PROGRAM stableCalc
     ! Now read the information
     jj = 1
     DO ii = 1, nEvents
+        READ(uni, *) tEvents(:, jj)
         IF (rank.NE.MOD(ii - 1, nProc)) CYCLE
         
-        READ(uni, *) tEvents(:, jj)
         jj = jj + 1
     END DO
     

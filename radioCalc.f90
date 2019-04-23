@@ -36,7 +36,6 @@ PROGRAM radioCalc
     CLOSE(UNIT = uni)
     
     ! Read tau parameters
-    uni = 16
     OPEN(UNIT = uni, FILE = "tauList.in")
     
     READ(uni, *) nTau
@@ -63,9 +62,9 @@ PROGRAM radioCalc
     ! Now read the information
     jj = 1
     DO ii = 1, nEvents
+        READ(uni, *) tEvents(:, jj)
         IF (rank.NE.MOD(ii - 1, nProc)) CYCLE
         
-        READ(uni, *) tEvents(:, jj)
         jj = jj + 1
     END DO
     
@@ -81,7 +80,6 @@ PROGRAM radioCalc
     CLOSE(UNIT = uni)
     
     ! Open output files. Write the rank to the filename.
-    uni = 10 + rank
     WRITE(sRank, '(I5)') rank
     OPEN(UNIT = uni, FILE = "Output"//TRIM(ADJUSTL(sRank))//".txt")
     
