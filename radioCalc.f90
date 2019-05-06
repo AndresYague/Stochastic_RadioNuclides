@@ -62,10 +62,12 @@ PROGRAM radioCalc
     ! Now read the information
     jj = 1
     DO ii = 1, nEvents
-        READ(uni, *) tEvents(:, jj)
-        IF (rank.NE.MOD(ii - 1, nProc)) CYCLE
-        
-        jj = jj + 1
+        IF (rank.EQ.MOD(ii - 1, nProc)) THEN
+            READ(uni, *) tEvents(:, jj)
+            jj = jj + 1
+        ELSE
+            READ(uni, *)
+        END IF
     END DO
     
     CLOSE(UNIT = uni)
