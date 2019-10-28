@@ -24,7 +24,7 @@ with open(path+'tArray.in', 'r') as ff:
     tArray = np.array(map(float, line))
 
 # Get output files
-files = sorted(glob.glob("%s/Output*" %path))
+files = sorted(glob.glob("%s/tEvents_box*" %path))
 
 # Declare the radioactive abundances array
 radio_ab = []

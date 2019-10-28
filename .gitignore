@@ -1,6 +1,7 @@
 # Ignore .in and .txt files
 *.in
 *.txt
+*.npy
 
 # Ignore tags
 tags
