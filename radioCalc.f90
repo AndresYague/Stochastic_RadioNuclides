@@ -12,10 +12,11 @@ PROGRAM radioCalc
     INTEGER::rank, nProc, ierror
     
     ! Program variables
-    REAL, ALLOCATABLE::taus(:), tEvents(:, :), tArray(:)
-    REAL, ALLOCATABLE::abundArray(:, :)
-    REAL::prodFactor
+    DOUBLE PRECISION, ALLOCATABLE::taus(:), tEvents(:, :), tArray(:)
+    DOUBLE PRECISION, ALLOCATABLE::abundArray(:, :), prodFactor(:, :)
+    DOUBLE PRECISION::valFactor
     INTEGER::uni, nTau, nTimes, lenEvent, nEvents, ii, jj, kk, redNEvents
+    INTEGER::lenFactor, nFactor
     CHARACTER(5)::sRank
     LOGICAL::isMaster
     
@@ -29,13 +30,8 @@ PROGRAM radioCalc
     ! Identify master
     isMaster = (rank.EQ.0)
     
-    ! Read prodFactor
-    uni = 16
-    OPEN(UNIT = uni, FILE = "prodFactor.in")
-    READ(uni, *) prodFactor
-    CLOSE(UNIT = uni)
-    
     ! Read tau parameters
+    uni = 16
     OPEN(UNIT = uni, FILE = "tauList.in")
     
     READ(uni, *) nTau
@@ -72,6 +68,47 @@ PROGRAM radioCalc
     
     CLOSE(UNIT = uni)
     
+    ! Now read the prodFactor
+    OPEN(UNIT = uni, FILE = "prodFactor.in")
+    
+    READ(uni, *) lenFactor, nFactor
+    
+    ! If there is only one production factor, then we fill the array with that
+    ! value. We know is only one if lenFactor = nFactor = 1
+    IF ((lenFactor.NE.1).AND.(lenFactor.NE.lenEvent)) THEN
+        PRINT*, "Error! There should be the same number of events"
+        PRINT*, " and production factors!"
+        STOP
+    END IF
+    IF ((nFactor.NE.1).AND.(nFactor.NE.nEvents)) THEN
+        PRINT*, "Error! There should be the same number of events"
+        PRINT*, " and production factors!"
+        STOP
+    END IF
+    IF (lenFactor.EQ.1) THEN
+        READ(uni, *) valFactor
+    END IF
+    
+    ! Allocate prodFactor with the reduced size redNEvents
+    ALLOCATE(prodFactor(lenEvent, redNEvents))
+    
+    ! Now read the information
+    IF (lenFactor.EQ.1) THEN
+        prodFactor = valFactor
+    ELSE
+        jj = 1
+        DO ii = 1, nEvents
+            IF (rank.EQ.MOD(ii - 1, nProc)) THEN
+                READ(uni, *) prodFactor(:, jj)
+                jj = jj + 1
+            ELSE
+                READ(uni, *)
+            END IF
+        END DO
+    END IF
+    
+    CLOSE(UNIT = uni)
+    
     ! Allocate and read tArray, allocate abundArray
     OPEN(UNIT = uni, FILE = "tArray.in")
     
@@ -100,7 +137,7 @@ PROGRAM radioCalc
             IF (rank.NE.MOD(jj - 1, nProc)) CYCLE
             
             CALL decayingAbund(abundArray(:, kk), tEvents(:, kk), tArray, &
-                               taus(ii), prodFactor)
+                               taus(ii), prodFactor(:, kk))
             
             kk = kk + 1
         END DO
@@ -118,7 +155,7 @@ PROGRAM radioCalc
     
     CLOSE(uni)
     
-    DEALLOCATE(taus, tEvents, tArray, abundArray)
+    DEALLOCATE(taus, tEvents, tArray, abundArray, prodFactor)
     CALL MPI_FINALIZE(ierror)
 CONTAINS
 
@@ -130,7 +167,7 @@ CONTAINS
 !!! -tEvents, the array with the polluting events times.                     !!!
 !!! -tArray, the array with the sampling temporal points.                    !!!
 !!! -tau, the tau value.                                                     !!!
-!!! -prodFactor, production factor.                                          !!!
+!!! -prodFactor, the array with the production factor.                       !!!
 !!!                                                                          !!!
 !!! At the output, abundArray will be updated.                               !!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -138,11 +175,11 @@ SUBROUTINE decayingAbund(abundArray, tEvents, tArray, tau, prodFactor)
     IMPLICIT NONE
     
     ! Input
-    REAL::abundArray(:), tEvents(:), tArray(:), tau, prodFactor
+    DOUBLE PRECISION::abundArray(:), tEvents(:), tArray(:), tau, prodFactor(:)
     
     ! Local
-    REAL::invTau, currT, prevT, dt, val, thisEvent, nextEvent
-    REAL::minTime
+    DOUBLE PRECISION::invTau, currT, prevT, dt, val, thisEvent, nextEvent
+    DOUBLE PRECISION::minTime
     INTEGER::ii, tLen, iiEvent, lenEvent
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!END OF DECLARATIONS!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -150,7 +187,7 @@ SUBROUTINE decayingAbund(abundArray, tEvents, tArray, tau, prodFactor)
     ! Set up first point
     iiEvent = 1
     IF (tEvents(1).LE.0.D0) THEN
-        abundArray(1) = prodFactor
+        abundArray(1) = prodFactor(1)
         iiEvent = 2
     ELSE
         abundArray(1) = 0.D0
@@ -194,7 +231,13 @@ SUBROUTINE decayingAbund(abundArray, tEvents, tArray, tau, prodFactor)
                 
                 ! Take the minimum
                 minTime = MINVAL((/nextEvent, currT/))
-                val = (prodFactor + val)*EXP(-(minTime - thisEvent)*invTau)
+                
+                ! Make sure that we never have lower than 0 abundance
+                IF ((prodFactor(iiEvent) + val).LT.0) THEN
+                    val = 0
+                ELSE
+                    val = (prodFactor(iiEvent) + val)*EXP(-(minTime - thisEvent)*invTau)
+                END IF
                 
                 ! Advance time
                 iiEvent = iiEvent + 1

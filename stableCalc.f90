@@ -11,9 +11,11 @@ PROGRAM stableCalc
     INTEGER::rank, nProc, ierror
     
     ! Program variables
-    REAL, ALLOCATABLE::tEvents(:, :), tArray(:)
-    REAL, ALLOCATABLE::abundArray(:, :)
+    DOUBLE PRECISION, ALLOCATABLE::tEvents(:, :), tArray(:)
+    DOUBLE PRECISION, ALLOCATABLE::abundArray(:, :), prodFactor(:, :)
+    DOUBLE PRECISION::valFactor
     INTEGER::uni, nTimes, lenEvent, nEvents, ii, jj, redNEvents
+    INTEGER::lenFactor, nFactor
     CHARACTER(5)::sRank
     LOGICAL::isMaster
     
@@ -56,6 +58,47 @@ PROGRAM stableCalc
     
     CLOSE(UNIT = uni)
     
+    ! Now read the prodFactor
+    OPEN(UNIT = uni, FILE = "prodFactor.in")
+    
+    READ(uni, *) lenFactor, nFactor
+    
+    ! If there is only one production factor, then we fill the array with that
+    ! value. We know is only one if lenFactor = nFactor = 1
+    IF ((lenFactor.NE.1).AND.(lenFactor.NE.lenEvent)) THEN
+        PRINT*, "Error! There should be the same number of events"
+        PRINT*, " and production factors!"
+        STOP
+    END IF
+    IF ((nFactor.NE.1).AND.(nFactor.NE.nEvents)) THEN
+        PRINT*, "Error! There should be the same number of events"
+        PRINT*, " and production factors!"
+        STOP
+    END IF
+    IF (lenFactor.EQ.1) THEN
+        READ(uni, *) valFactor
+    END IF
+    
+    ! Allocate prodFactor with the reduced size redNEvents
+    ALLOCATE(prodFactor(lenEvent, redNEvents))
+    
+    ! Now read the information
+    IF (lenFactor.EQ.1) THEN
+        prodFactor = valFactor
+    ELSE
+        jj = 1
+        DO ii = 1, nEvents
+            IF (rank.EQ.MOD(ii - 1, nProc)) THEN
+                READ(uni, *) prodFactor(:, jj)
+                jj = jj + 1
+            ELSE
+                READ(uni, *)
+            END IF
+        END DO
+    END IF
+    
+    CLOSE(UNIT = uni)
+    
     ! Allocate and read tArray, allocate abundArray
     OPEN(UNIT = uni, FILE = "tArray.in")
     
@@ -79,7 +122,7 @@ PROGRAM stableCalc
         ! Divide events evenly
         IF (rank.NE.MOD(ii - 1, nProc)) CYCLE
         
-        CALL stableAbund(abundArray(:, jj), tEvents(:, jj), tArray)
+        CALL stableAbund(abundArray(:, jj), tEvents(:, jj), tArray, prodFactor(:, jj))
         jj = jj + 1
     END DO
     
@@ -95,7 +138,7 @@ PROGRAM stableCalc
     
     CLOSE(uni)
     
-    DEALLOCATE(tEvents, tArray, abundArray)
+    DEALLOCATE(tEvents, tArray, abundArray, prodFactor)
     CALL MPI_FINALIZE(ierror)
 CONTAINS
 
@@ -106,18 +149,18 @@ CONTAINS
 !!! -abundArray, the empty abundances array.                                 !!!
 !!! -tEvents, the array with the polluting events times.                     !!!
 !!! -tArray, the array with the sampling temporal points.                    !!!
+!!! -prodFactor, the array with the production factor.                       !!!
 !!!                                                                          !!!
 !!! At the output, abundArray will be updated.                               !!!
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-SUBROUTINE stableAbund(abundArray, tEvents, tArray)
+SUBROUTINE stableAbund(abundArray, tEvents, tArray, prodFactor)
     IMPLICIT NONE
     
     ! Input
-    REAL::abundArray(:), tEvents(:), tArray(:)
+    DOUBLE PRECISION::abundArray(:), tEvents(:), tArray(:), prodFactor(:)
     
     ! Local
-    REAL::currT, prevT, dt, val, thisEvent, nextEvent
-    REAL::minTime
+    DOUBLE PRECISION::currT, prevT, dt, val, thisEvent, nextEvent, minTime
     INTEGER::ii, tLen, iiEvent, lenEvent
     
     !!!!!!!!!!!!!!!!!!!!!!!!!!!!!END OF DECLARATIONS!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -125,7 +168,7 @@ SUBROUTINE stableAbund(abundArray, tEvents, tArray)
     ! Set up first point
     iiEvent = 1
     IF (tEvents(1).LE.0.D0) THEN
-        abundArray(1) = 1.D0
+        abundArray(1) = prodFactor(1)
         iiEvent = 2
     ELSE
         abundArray(1) = 0.D0
@@ -159,7 +202,13 @@ SUBROUTINE stableAbund(abundArray, tEvents, tArray)
                 
                 ! Take the minimum
                 minTime = MINVAL((/nextEvent, currT/))
-                val = val + 1
+                
+                ! Make sure that we never have lower than 0 abundance
+                IF ((prodFactor(iiEvent) + val).LT.0) THEN
+                    val = 0
+                ELSE
+                    val = (prodFactor(iiEvent) + val)
+                END IF
                 
                 ! Advance time
                 iiEvent = iiEvent + 1

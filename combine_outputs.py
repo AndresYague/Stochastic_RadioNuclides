@@ -19,7 +19,7 @@ with open(path+'tauList.in', 'r') as ff:
     
     # Create one file for each tau
     line = line.replace('D','e')
-    tauList = (line.replace('.','_')).split()
+    tauList = line.split()
     for tau in tauList:
         with open(path + "tau_{}.txt".format(tau), "w") as fwrite:
             for tt in tArray:
