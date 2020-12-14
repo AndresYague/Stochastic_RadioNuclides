@@ -5,7 +5,7 @@ filName=$1
 echo "Copying tEvents"
 cp "database/"$filName".in" "tEvents.in"
 
-# Now run the experiment
+# Now run the experiment, change the number of CPU if desired
 echo "Running experiment"
 mpirun -np 10 ./radioCalc
 
